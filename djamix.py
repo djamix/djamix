@@ -52,18 +52,19 @@ MEDIA_ROOT = "media/"
 DEBUG = False
 
 
-def random_color():
+def two_random_complementary_colors():
+    """
+    This is not very useful but we use it on the default template to randomise
+    bg an text color every time the server reloads
+    """
     def color():
-        return int(random.random() * 255)
-    return color(), color(), color()
+        return random.randrange(0, 255)
+    R, G, B = color(), color(), color()
+    opposite_color = 255 - R, 255 - G, 255 - B
+    return (R, G, B), opposite_color
 
 
-def opposite_color(color):
-    return 255 - color[0], 255 - color[1], 255 - color[2]
-
-
-BGCOLOR = random_color()
-TXTCOLOR = opposite_color(BGCOLOR)
+BGCOLOR, TXTCOLOR = two_random_complementary_colors()
 DEFAULT_TEMPLATE_NAME = 'hakunamatata.html'
 DEFAULT_TEMPLATE_CONTENT = """
 <html>

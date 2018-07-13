@@ -22,7 +22,7 @@ def test_basic_model_from_fixture():
     class TestModel(DjamixModel):
 
         class Meta:
-            fixture = 'test_data/test_model1_fixture.yaml'
+            fixture = 'tests/fixtures/model1.yaml'
 
     assert TestModel.objects.all().count() == 4
 
@@ -33,7 +33,7 @@ def test_basic_integer_orm_lookups():
     class TestModel(DjamixModel):
 
         class Meta:
-            fixture = 'test_data/test_model1_fixture.yaml'
+            fixture = 'tests/fixtures/model1.yaml'
 
     assert TestModel.objects.filter(foo=5).count() == 1
     assert TestModel.objects.filter(foo__gt=5).count() == 1
@@ -50,7 +50,7 @@ def test_basic_boolean_orm_lookups():
     class TestModel(DjamixModel):
 
         class Meta:
-            fixture = 'test_data/test_model1_fixture.yaml'
+            fixture = 'tests/fixtures/model1.yaml'
 
     assert TestModel.objects.filter(foo__bool=True).count() == 4
     assert TestModel.objects.filter(foo__bool=False).count() == 0

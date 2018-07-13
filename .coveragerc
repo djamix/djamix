@@ -1,6 +1,6 @@
 [run]
 omit =
-    test_*.py
+    tests/*
 
 [report]
 fail_under=40

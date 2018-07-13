@@ -284,8 +284,9 @@ class DjamixManager:
     def get(self, **kwargs):
         filtered = self.filter(**kwargs)
         if len(filtered) > 1:
-            raise ValueError("It didnt' return 1 object it returned %s" %
-                             len(filtered))
+            raise self.model_class.MultipleObjectsReturned(
+                "It didnt' return 1 object it returned %s" % len(filtered)
+            )
         elif len(filtered) == 0:
             raise self.model_class.DoesNotExist(
                 "Not such %s with %s" % (self.model_class.__name__, kwargs)
@@ -552,6 +553,9 @@ class DjamixModel(metaclass=DjamixModelMeta):
         pass
 
     class DoesNotExist(Exception):
+        pass
+
+    class MultipleObjectsReturned(Exception):
         pass
 
     def __init__(self, **kwargs):

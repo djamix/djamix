@@ -133,3 +133,6 @@ def test_orm_get():
 
     with raises(TestModel.DoesNotExist):
         assert TestModel.objects.get(baz='helloworld')
+
+    with raises(TestModel.MultipleObjectsReturned):
+        assert TestModel.objects.get(date__year=2018)

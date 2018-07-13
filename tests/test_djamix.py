@@ -88,7 +88,7 @@ def test_basic_date_orm_lookups():
         assert TestModel.objects.filter(date__year__gte=2018).count() == 4
 
 
-def test_multiple_orm_filter_arguments_in_the_same_call():
+def test_chaining_orm_filter_calls():
     from djamix import DjamixModel
 
     class TestModel(DjamixModel):
@@ -101,8 +101,35 @@ def test_multiple_orm_filter_arguments_in_the_same_call():
         .filter(date__year=2018)\
         .filter(date__month=JULY).count() == 1
 
+
+def test_multiple_orm_filter_arguments_in_the_same_call():
+    from djamix import DjamixModel
+
+    class TestModel(DjamixModel):
+
+        class Meta:
+            fixture = 'tests/fixtures/model1.yaml'
+
     assert TestModel.objects\
         .filter(baz='hello', date__year=2018).count() == 1
 
     assert TestModel.objects\
         .filter(date__year=2018, baz='hello').count() == 1
+
+    assert TestModel.objects\
+        .filter(date__year=2018, bar__gte=0).count() == 2
+
+
+def test_orm_get():
+    from djamix import DjamixModel
+
+    class TestModel(DjamixModel):
+
+        class Meta:
+            fixture = 'tests/fixtures/model1.yaml'
+
+    assert TestModel.objects.get(baz='hello')
+    assert TestModel.objects.get(baz__startswith='he')
+
+    with raises(TestModel.DoesNotExist):
+        assert TestModel.objects.get(baz='helloworld')

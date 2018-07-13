@@ -287,10 +287,9 @@ class DjamixManager:
             raise ValueError("It didnt' return 1 object it returned %s" %
                              len(filtered))
         elif len(filtered) == 0:
-            raise ValueError("Not such %s with %s" % (
-                self.model_class.__name__,
-                kwargs
-            ))
+            raise self.model_class.DoesNotExist(
+                "Not such %s with %s" % (self.model_class.__name__, kwargs)
+            )
         else:
             return filtered[0]
 
@@ -550,6 +549,9 @@ def print_model_summary(name, cls):
 class DjamixModel(metaclass=DjamixModelMeta):
 
     class Meta:
+        pass
+
+    class DoesNotExist(Exception):
         pass
 
     def __init__(self, **kwargs):

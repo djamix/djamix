@@ -6,6 +6,7 @@ name = "pypi"
 [dev-packages]
 pytest = "*"
 pytest-cov = "*"
+pdbpp = "*"
 
 [packages]
 django = ">=2.0"

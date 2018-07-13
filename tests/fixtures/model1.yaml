@@ -3,15 +3,19 @@
 - foo: 1
   bar: 2
   baz: 'random'
+  date: 2018-07-13
 
 - foo: 3
   bar: 4
   baz: 'text'
+  date: 2019-07-13
 
 - foo: 5
   bar: 6
   baz: 'hello'
+  date: 2018-10-13
 
 - foo: 7
   bar: 8
   baz: 'world'
+  date: 2020-07-13

@@ -5,7 +5,7 @@ This is main djamix file.
 """
 
 from collections import defaultdict, OrderedDict
-from functools import cmp_to_key
+from functools import cmp_to_key, partial
 from operator import attrgetter as A
 from urllib.parse import urlencode
 from uuid import NAMESPACE_URL, uuid4, uuid5
@@ -295,15 +295,17 @@ class DjamixManager:
             return filtered[0]
 
     def filter(self, **kwargs):
-        filters = []
+        filters = {}
         for key, value in kwargs.items():
             elements = key.split("__")
             if len(elements) == 1:
-                filters.append(
-                    lambda x: filter_including_callables(x, key, value)
+                filters[f'{key}={value}'] = partial(
+                    filter_including_callables,
+                    key=key,
+                    value=value
                 )
 
-            if len(elements) == 2:
+            elif len(elements) == 2:
                 try:
                     function = FILTER_FUNCTIONS[elements[1]]
                 except KeyError:
@@ -311,19 +313,22 @@ class DjamixManager:
                         "Unsupported lookup type `%s`" % elements[1]
                     )
 
-                filters.append(
-                    lambda x: filter_including_callables(
-                        x, elements[0], value, operation=function
-                    )
+                filters[f'{elements[1]}={key}={value}'] = partial(
+                    filter_including_callables,
+                    key=elements[0],
+                    value=value,
+                    operation=function,
+                )
+            else:
+                raise NotImplementedError(
+                    "Chained dunder lookups not supported yet"
                 )
 
-        filtered = []
-        for r in self.all():
-            for f in filters:
-                if f(r):
-                    # skip duplicates
-                    if r not in filtered:
-                        filtered.append(r)
+        filtered = [
+            record
+            for record in self.all()
+            if all(_filter(record) for _filter in filters.values())
+        ]
 
         return self._clone(filtered)
 

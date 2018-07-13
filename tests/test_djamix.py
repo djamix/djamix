@@ -4,6 +4,9 @@
 Test suite for djamix. Made with pytest.
 """
 
+from datetime import date
+from pytest import raises
+
 
 def test_two_complementary_colors():
     from djamix import two_random_complementary_colors
@@ -58,3 +61,48 @@ def test_basic_boolean_orm_lookups():
     assert TestModel.objects.filter(foo__isnull=True).count() == 0
     assert TestModel.objects.filter(foo__isnotnull=True).count() == 4
     assert TestModel.objects.filter(foo__isnotnull=False).count() == 0
+
+
+def test_basic_date_orm_lookups():
+    from djamix import DjamixModel
+
+    class TestModel(DjamixModel):
+
+        class Meta:
+            fixture = 'tests/fixtures/model1.yaml'
+
+    JULY = 7
+    OCTOBER = 10
+    assert TestModel.objects.filter(date__year=2018).count() == 2
+
+    assert TestModel.objects.filter(date__month=JULY).count() == 3
+    assert TestModel.objects.filter(date__month=OCTOBER).count() == 1
+    assert TestModel.objects.filter(date__gte=date(2018, 6, 4)).count() == 4
+    assert TestModel.objects.filter(date__gte=date(2019, 6, 4)).count() == 2
+
+    with raises(NotImplementedError):
+        # TODO This will raise an exception because we don't support chained
+        # dunder lookups yet, so it will try to resolve year__gte as one thing
+        # and then fail to find any items with such property. However, once we
+        # add the proper support it should return 4.
+        assert TestModel.objects.filter(date__year__gte=2018).count() == 4
+
+
+def test_multiple_orm_filter_arguments_in_the_same_call():
+    from djamix import DjamixModel
+
+    class TestModel(DjamixModel):
+
+        class Meta:
+            fixture = 'tests/fixtures/model1.yaml'
+
+    JULY = 7
+    assert TestModel.objects\
+        .filter(date__year=2018)\
+        .filter(date__month=JULY).count() == 1
+
+    assert TestModel.objects\
+        .filter(baz='hello', date__year=2018).count() == 1
+
+    assert TestModel.objects\
+        .filter(date__year=2018, baz='hello').count() == 1

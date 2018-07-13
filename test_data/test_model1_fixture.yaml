@@ -1,0 +1,17 @@
+---
+
+- foo: 1
+  bar: 2
+  baz: 'random'
+
+- foo: 3
+  bar: 4
+  baz: 'text'
+
+- foo: 5
+  bar: 6
+  baz: 'hello'
+
+- foo: 7
+  bar: 8
+  baz: 'world'

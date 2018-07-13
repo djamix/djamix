@@ -5,7 +5,7 @@ Test suite for djamix. Made with pytest.
 """
 
 from datetime import date
-from pytest import raises
+from pytest import raises, fixture
 
 
 def test_two_complementary_colors():
@@ -19,7 +19,8 @@ def test_two_complementary_colors():
 # ORM Tests
 # ORM Tests
 
-def test_basic_model_from_fixture():
+@fixture
+def TestModel():
     from djamix import DjamixModel
 
     class TestModel(DjamixModel):
@@ -27,17 +28,14 @@ def test_basic_model_from_fixture():
         class Meta:
             fixture = 'tests/fixtures/model1.yaml'
 
+    return TestModel
+
+
+def test_basic_model_from_fixture(TestModel):
     assert TestModel.objects.all().count() == 4
 
 
-def test_basic_integer_orm_lookups():
-    from djamix import DjamixModel
-
-    class TestModel(DjamixModel):
-
-        class Meta:
-            fixture = 'tests/fixtures/model1.yaml'
-
+def test_basic_integer_orm_lookups(TestModel):
     assert TestModel.objects.filter(foo=5).count() == 1
     assert TestModel.objects.filter(foo__gt=5).count() == 1
     assert TestModel.objects.filter(foo__gte=5).count() == 2
@@ -47,14 +45,7 @@ def test_basic_integer_orm_lookups():
     assert TestModel.objects.filter(foo__range=(3, 5)).count() == 2
 
 
-def test_basic_boolean_orm_lookups():
-    from djamix import DjamixModel
-
-    class TestModel(DjamixModel):
-
-        class Meta:
-            fixture = 'tests/fixtures/model1.yaml'
-
+def test_basic_boolean_orm_lookups(TestModel):
     assert TestModel.objects.filter(foo__bool=True).count() == 4
     assert TestModel.objects.filter(foo__bool=False).count() == 0
     assert TestModel.objects.filter(foo__isnull=False).count() == 4
@@ -63,13 +54,7 @@ def test_basic_boolean_orm_lookups():
     assert TestModel.objects.filter(foo__isnotnull=False).count() == 0
 
 
-def test_basic_date_orm_lookups():
-    from djamix import DjamixModel
-
-    class TestModel(DjamixModel):
-
-        class Meta:
-            fixture = 'tests/fixtures/model1.yaml'
+def test_basic_date_orm_lookups(TestModel):
 
     JULY = 7
     OCTOBER = 10
@@ -88,28 +73,14 @@ def test_basic_date_orm_lookups():
         assert TestModel.objects.filter(date__year__gte=2018).count() == 4
 
 
-def test_chaining_orm_filter_calls():
-    from djamix import DjamixModel
-
-    class TestModel(DjamixModel):
-
-        class Meta:
-            fixture = 'tests/fixtures/model1.yaml'
-
+def test_chaining_orm_filter_calls(TestModel):
     JULY = 7
     assert TestModel.objects\
         .filter(date__year=2018)\
         .filter(date__month=JULY).count() == 1
 
 
-def test_multiple_orm_filter_arguments_in_the_same_call():
-    from djamix import DjamixModel
-
-    class TestModel(DjamixModel):
-
-        class Meta:
-            fixture = 'tests/fixtures/model1.yaml'
-
+def test_multiple_orm_filter_arguments_in_the_same_call(TestModel):
     assert TestModel.objects\
         .filter(baz='hello', date__year=2018).count() == 1
 
@@ -120,14 +91,7 @@ def test_multiple_orm_filter_arguments_in_the_same_call():
         .filter(date__year=2018, bar__gte=0).count() == 2
 
 
-def test_orm_get():
-    from djamix import DjamixModel
-
-    class TestModel(DjamixModel):
-
-        class Meta:
-            fixture = 'tests/fixtures/model1.yaml'
-
+def test_orm_get(TestModel):
     assert TestModel.objects.get(baz='hello')
     assert TestModel.objects.get(baz__startswith='he')
 

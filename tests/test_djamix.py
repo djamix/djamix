@@ -100,3 +100,21 @@ def test_orm_get(TestModel):
 
     with raises(TestModel.MultipleObjectsReturned):
         assert TestModel.objects.get(date__year=2018)
+
+
+def test_order_by(TestModel):
+    for x, y in zip(TestModel.objects.order_by('bar'), [2, 4, 6, 8]):
+        assert x.bar == y
+
+    for x, y in zip(TestModel.objects.order_by('-foo'), [7, 5, 3, 1]):
+        assert x.foo == y
+
+    reversed_baz = ["world", "text", "random", "hello"]
+    for x, y in zip(TestModel.objects.order_by('-baz'), reversed_baz):
+        assert x.baz == y
+
+    dates = [date(2018, 7, 13), date(2018, 10, 13), date(2019, 7, 13),
+             date(2020, 7, 13)]
+
+    for x, y in zip(TestModel.objects.order_by('date'), dates):
+        assert x.date == y

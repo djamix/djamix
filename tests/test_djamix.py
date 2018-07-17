@@ -102,7 +102,7 @@ def test_orm_get(TestModel):
         assert TestModel.objects.get(date__year=2018)
 
 
-def test_order_by(TestModel):
+def test_orm_order_by(TestModel):
     for x, y in zip(TestModel.objects.order_by('bar'), [2, 4, 6, 8]):
         assert x.bar == y
 
@@ -118,3 +118,14 @@ def test_order_by(TestModel):
 
     for x, y in zip(TestModel.objects.order_by('date'), dates):
         assert x.date == y
+
+
+def test_orm_groupby(TestModel):
+    qs = TestModel.objects.groupby(lambda x: x.date.year)
+    # there are three unique years but because qs is not ordered we still have
+    # 4.
+    assert len(qs) == 4
+    qs = TestModel.objects.order_by('date').groupby(lambda x: x.date.year)
+    assert len(qs) == 3
+    assert dict(qs).keys() == {2018, 2019, 2020}
+    assert len(dict(qs)[2018]) == 2

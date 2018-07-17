@@ -7,6 +7,8 @@ name = "pypi"
 pytest = "*"
 pytest-cov = "*"
 pdbpp = "*"
+"flake8" = {ref = "9631dac5", git = "https://gitlab.com/pycqa/flake8", editable = true}
+pyflakes = "==2.0.0"
 
 [packages]
 django = ">=2.0"

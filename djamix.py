@@ -759,15 +759,19 @@ def extract_taggable_from_locals(defined_locals):
     """
     # doing .get() because if defined_locals is not from a global scope (ie.
     # inside a function, like in a testsuite) it won't have __file__
-    afile = defined_locals.get('__file__', {})
+    afile = defined_locals.get('__file__', None)
     output = []
+
+    def is_taggable(v):
+        return inspect.isfunction(v) and not v.__name__.startswith('_')
+
     for k, v in defined_locals.items():
-        if (
-            inspect.isfunction(v)
-            and inspect.getfile(v) == afile
-            and not v.__name__.startswith("_")
-        ):
-            output.append(v)
+        if afile:
+            if is_taggable(v) and inspect.getfile(v) == afile:
+                output.append(v)
+        else:
+            if is_taggable(v):
+                output.append(v)
 
     return output
 

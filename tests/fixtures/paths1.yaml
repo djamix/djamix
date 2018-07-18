@@ -3,3 +3,11 @@
 - name: foobar
   path: /foobar2/
   template: foo/bar.html
+
+- name: with_variables
+  path: /with-variables/
+  template: with_variables.html
+
+- name: with_templatetags
+  path: /with-templatetags/
+  template: with_templatetags.html

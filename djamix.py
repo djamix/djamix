@@ -30,8 +30,9 @@ from django.template import Library
 from django.template.loader import render_to_string
 from django.template.response import TemplateResponse
 from django.template.defaultfilters import slugify
-from django.urls import path, reverse
+from django.urls import path, reverse, clear_url_caches
 from django.utils import autoreload
+from django.utils.functional import empty
 from django.utils.lorem_ipsum import words
 
 import yaml
@@ -754,7 +755,9 @@ def extract_taggable_from_locals(defined_locals):
     """
     Local helper
     """
-    afile = defined_locals['__file__']
+    # doing .get() because if defined_locals is not from a global scope (ie.
+    # inside a function, like in a testsuite) it won't have __file__
+    afile = defined_locals.get('__file__', {})
     output = []
     for k, v in defined_locals.items():
         if (
@@ -827,7 +830,7 @@ def handle_custom_user_commands(argv):
     """
     # either runs the command and exits after the command is finished.
     # or just returns and then it fallbaacks to django command mechanism
-    if argv[1] in USER_COMMANDS:
+    if len(argv) > 1 and argv[1] in USER_COMMANDS:
         print(USER_COMMANDS[argv[1]](*argv[2:]))
         exit()
 
@@ -838,25 +841,9 @@ def shell_command(defined_locals):
     return lambda: code.interact(local=defined_locals)
 
 
-def start(paths=None, **settings_kwargs):
-    """
-    Main entry point for a djamix app
-    """
-    global urlpatterns
-    global register
-    global registered_functions
-    global global_context
-    global USER_COMMANDS
-    global fake
-
-    if 'LANGUAGE_CODE' in settings_kwargs:
-        fake = Faker(settings_kwargs['LANGUAGE_CODE'])
-
-    # don't pass locals explicitly
-    frame = inspect.currentframe()
-    defined_locals = frame.f_back.f_locals
-    del frame
-
+def _setup_settings(**settings_kwargs):
+    # reset the settings
+    settings._wrapped = empty
     settings.configure(
         DEBUG=True,
         SECRET_KEY='its not really secret',
@@ -897,12 +884,14 @@ def start(paths=None, **settings_kwargs):
         **settings_kwargs
     )
 
+
+def _setup_views_and_urlpatterns(global_context, defined_locals, paths):
     _context = defined_locals.get('context', {})
+
     global_context = dict(global_context, **_context)
     # extend global context with all the models
     global_context = dict(global_context, **djamix_models)
 
-    tags = extract_taggable_from_locals(defined_locals)
     paths_description = urls_from_yaml(paths) if paths else None
     # autoreload when urls are changed
     autoreload._cached_filenames.append(paths)
@@ -910,6 +899,11 @@ def start(paths=None, **settings_kwargs):
     urlpatterns = create_views_from_description(
         paths_description, global_context
     )
+    return urlpatterns
+
+
+def _setup_taggables(defined_locals, djamix_models):
+    tags = extract_taggable_from_locals(defined_locals)
 
     for tag in tags:
         register.simple_tag(tag)
@@ -937,6 +931,33 @@ def start(paths=None, **settings_kwargs):
     register.simple_tag(async_include)
     register.simple_tag(async_data_url)
 
+
+def start(paths=None, **settings_kwargs):
+    """
+    Main entry point for a djamix app
+    """
+    global urlpatterns
+    global register
+    global registered_functions
+    global global_context
+    global USER_COMMANDS
+    global fake
+
+    if 'LANGUAGE_CODE' in settings_kwargs:
+        fake = Faker(settings_kwargs['LANGUAGE_CODE'])
+
+    # don't pass locals explicitly
+    frame = inspect.currentframe()
+    defined_locals = frame.f_back.f_locals
+    del frame
+
+    _setup_settings()
+    clear_url_caches()   # useful in tests where we change urls a lot.
+    urlpatterns = []
+    urlpatterns = _setup_views_and_urlpatterns(
+        global_context, defined_locals, paths
+    )
+    _setup_taggables(defined_locals, djamix_models)
     handle_custom_user_commands(sys.argv)
     execute_from_command_line(sys.argv)
 

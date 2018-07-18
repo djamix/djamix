@@ -1,0 +1,5 @@
+---
+
+- name: foobar
+  path: /foobar2/
+  template: foo/bar.html

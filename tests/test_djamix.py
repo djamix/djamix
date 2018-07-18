@@ -11,7 +11,7 @@ from pytest import raises, fixture
 def test_two_complementary_colors():
     from djamix import two_random_complementary_colors
     color1, color2 = two_random_complementary_colors()
-    assert all(0 < c < 255 for c in color1)
+    assert all(0 <= c < 255 for c in color1)
     assert all((c2 == 255 - c1) for (c1, c2) in zip(color1, color2))
 
 
@@ -129,3 +129,21 @@ def test_orm_groupby(TestModel):
     assert len(qs) == 3
     assert dict(qs).keys() == {2018, 2019, 2020}
     assert len(dict(qs)[2018]) == 2
+
+
+# =======================
+# Testing views
+# =======================
+
+def test_basic_urls_setup():
+    from django.urls import reverse
+    from djamix import start
+    start()
+    assert reverse('home') == '/'
+
+
+def test_custom_basic_urls_setup():
+    from django.urls import reverse
+    from djamix import start
+    start('tests/fixtures/paths1.yaml')
+    assert reverse('foobar') == '/foobar2/'

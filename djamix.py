@@ -788,6 +788,7 @@ def create_views_from_description(descriptions, global_context):
     returns urlpatterns with binded views
     """
 
+    clear_url_caches()   # required in tests where we change urls a lot.
     urlpatterns = []
 
     if not descriptions:
@@ -831,12 +832,10 @@ def handle_custom_user_commands(argv):
     Super basic handle of custom user commands
     """
     # either runs the command and exits after the command is finished.
-    # or just returns and then it fallbaacks to django command mechanism
+    # or just returns and then it fallbacks to django command mechanism
     if len(argv) > 1 and argv[1] in USER_COMMANDS:
         print(USER_COMMANDS[argv[1]](*argv[2:]))
         exit()
-
-    pass
 
 
 def shell_command(defined_locals):
@@ -891,7 +890,10 @@ def _setup_settings(**settings_kwargs):
         USE_TZ=True,
         **settings_kwargs
     )
+    # TODO – maybe handle setting_changed signal instead?
     _patch_template_engines()
+    # For AppsRegistry stuff
+    django.setup()
 
 
 def _patch_template_engines():
@@ -969,13 +971,11 @@ def start(paths=None, **settings_kwargs):
     del frame
 
     _setup_settings(**settings_kwargs)
-    django.setup()
-    clear_url_caches()   # useful in tests where we change urls a lot.
-    urlpatterns = []
     urlpatterns = _setup_views_and_urlpatterns(
         global_context, defined_locals, paths
     )
     _setup_taggables(defined_locals, djamix_models)
+
     handle_custom_user_commands(sys.argv)
     execute_from_command_line(sys.argv)
 

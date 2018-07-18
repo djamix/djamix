@@ -21,11 +21,13 @@ import random
 import shutil
 import sys
 
+import django
 from django.conf import settings
 from django.conf.urls.static import static
 from django.core.management import execute_from_command_line
 from django.core.serializers.json import DjangoJSONEncoder
 from django.http import HttpResponse
+import django.template
 from django.template import Library
 from django.template.loader import render_to_string
 from django.template.response import TemplateResponse
@@ -842,6 +844,12 @@ def shell_command(defined_locals):
 
 
 def _setup_settings(**settings_kwargs):
+    # CUSTOM_TEMPLATE_DIRS is a additional setting that is going to be useful
+    # mostly in the tests so we can point to templates from another directory
+    # than default w/o needing to setup full TEMPLATES structure.
+    # FYI: that could also be a list of paths, not just a single path.
+    CUSTOM_TEMPLATE_DIRS = settings_kwargs.pop('CUSTOM_TEMPLATE_DIRS', [])
+
     # reset the settings
     settings._wrapped = empty
     settings.configure(
@@ -856,7 +864,7 @@ def _setup_settings(**settings_kwargs):
         TEMPLATES=[
             {
                 'BACKEND': 'django.template.backends.django.DjangoTemplates',
-                'DIRS': ['templates/'],
+                'DIRS': ['templates/'] + CUSTOM_TEMPLATE_DIRS,
                 'OPTIONS': {
                     # 'libraries': [],  -> for named templatetags
                     'builtins': [__name__],
@@ -869,7 +877,7 @@ def _setup_settings(**settings_kwargs):
                             DEFAULT_TEMPLATE_NAME: DEFAULT_TEMPLATE_CONTENT,
                         }),
                         ('django.template.loaders.filesystem.Loader',
-                         ['templates']),
+                         ['templates'] + CUSTOM_TEMPLATE_DIRS),
                     ]
                 },
             },
@@ -883,6 +891,15 @@ def _setup_settings(**settings_kwargs):
         USE_TZ=True,
         **settings_kwargs
     )
+    _patch_template_engines()
+
+
+def _patch_template_engines():
+    # recreate EngineHandler so it overwrites cache from previous template
+    # settings (important in tests)
+    engines = django.template.EngineHandler()
+    django.template.engines = engines
+    django.template.loader.engines = engines
 
 
 def _setup_views_and_urlpatterns(global_context, defined_locals, paths):
@@ -951,7 +968,8 @@ def start(paths=None, **settings_kwargs):
     defined_locals = frame.f_back.f_locals
     del frame
 
-    _setup_settings()
+    _setup_settings(**settings_kwargs)
+    django.setup()
     clear_url_caches()   # useful in tests where we change urls a lot.
     urlpatterns = []
     urlpatterns = _setup_views_and_urlpatterns(

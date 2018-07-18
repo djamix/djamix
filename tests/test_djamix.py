@@ -5,7 +5,14 @@ Test suite for djamix. Made with pytest.
 """
 
 from datetime import date
+
+from django.test import Client
+from django.urls import reverse
+from django.template.exceptions import TemplateDoesNotExist
+
 from pytest import raises, fixture
+
+from djamix import start, rel
 
 
 def test_two_complementary_colors():
@@ -29,6 +36,11 @@ def TestModel():
             fixture = 'tests/fixtures/model1.yaml'
 
     return TestModel
+
+
+@fixture
+def client():
+    return Client()
 
 
 def test_basic_model_from_fixture(TestModel):
@@ -136,14 +148,21 @@ def test_orm_groupby(TestModel):
 # =======================
 
 def test_basic_urls_setup():
-    from django.urls import reverse
-    from djamix import start
     start()
     assert reverse('home') == '/'
 
 
-def test_custom_basic_urls_setup():
-    from django.urls import reverse
-    from djamix import start
+def test_custom_basic_urls_setup(client):
     start('tests/fixtures/paths1.yaml')
     assert reverse('foobar') == '/foobar2/'
+    with raises(TemplateDoesNotExist):
+        client.get('/foobar2/')
+
+
+def test_custom_basic_urls_with_custom_templates_setup(client):
+    template_paths = [rel('tests/templates/')]
+    start('tests/fixtures/paths1.yaml', CUSTOM_TEMPLATE_DIRS=template_paths)
+    assert reverse('foobar') == '/foobar2/'
+    response = client.get('/foobar2/')
+    assert response.status_code == 200
+    assert response.content.decode('utf-8') == "<h1>It's a BAR!</h1>\n"

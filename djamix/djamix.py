@@ -910,6 +910,7 @@ def _patch_template_engines():
 
 
 def _setup_views_and_urlpatterns(global_context, defined_locals, paths):
+    global urlpatterns
     _context = defined_locals.get('context', {})
 
     global_context = dict(global_context, **_context)
@@ -960,7 +961,6 @@ def start(paths=None, **settings_kwargs):
     """
     Main entry point for a djamix app
     """
-    global urlpatterns
     global fake
     global main_file_location
 
@@ -976,9 +976,7 @@ def start(paths=None, **settings_kwargs):
     main_file_location = afile if afile else __file__
 
     _setup_settings(**settings_kwargs)
-    urlpatterns = _setup_views_and_urlpatterns(
-        global_context, defined_locals, paths
-    )
+    _setup_views_and_urlpatterns(global_context, defined_locals, paths)
     _setup_taggables(defined_locals, djamix_models)
 
     handle_custom_user_commands(sys.argv)

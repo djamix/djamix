@@ -479,7 +479,7 @@ class DjamixModelMeta(type):
 
                 if k not in base_cls._schema:
                     if k in field_types:
-                        base_cls.schema[accessible_name] = field_types[k]
+                        base_cls._schema[accessible_name] = field_types[k]
                     else:
                         base_cls._schema[accessible_name] = type(v)
 

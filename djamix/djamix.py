@@ -960,10 +960,6 @@ def start(paths=None, **settings_kwargs):
     Main entry point for a djamix app
     """
     global urlpatterns
-    global register
-    global registered_functions
-    global global_context
-    global USER_COMMANDS
     global fake
 
     if 'LANGUAGE_CODE' in settings_kwargs:

@@ -48,6 +48,7 @@ djamix_models = {}
 registered_functions = {}
 global_context = {}
 USER_COMMANDS = {}
+main_file_location = None
 
 MEDIA_URL = "/media/"
 MEDIA_ROOT = "media/"
@@ -961,6 +962,7 @@ def start(paths=None, **settings_kwargs):
     """
     global urlpatterns
     global fake
+    global main_file_location
 
     if 'LANGUAGE_CODE' in settings_kwargs:
         fake = Faker(settings_kwargs['LANGUAGE_CODE'])
@@ -969,6 +971,9 @@ def start(paths=None, **settings_kwargs):
     frame = inspect.currentframe()
     defined_locals = frame.f_back.f_locals
     del frame
+
+    afile = defined_locals.get('__file__', None)
+    main_file_location = afile if afile else __file__
 
     _setup_settings(**settings_kwargs)
     urlpatterns = _setup_views_and_urlpatterns(
@@ -982,7 +987,7 @@ def start(paths=None, **settings_kwargs):
 
 def rel(*x):
     """"Simple path helper"""
-    abspath = os.path.abspath(__file__)
+    abspath = os.path.abspath(main_file_location)
     BASE_DIR = os.path.dirname(abspath)
     return os.path.join(BASE_DIR, *x)
 

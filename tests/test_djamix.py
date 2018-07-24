@@ -4,7 +4,7 @@
 Test suite for djamix. Made with pytest.
 """
 
-from datetime import date
+from datetime import date, datetime, time
 import json
 
 from django.test import Client
@@ -180,6 +180,44 @@ def test_orm_groupby(TestModel):
     assert len(qs) == 3
     assert dict(qs).keys() == {2018, 2019, 2020}
     assert len(dict(qs)[2018]) == 2
+
+
+def test_custom_field_type_definition():
+
+    from djamix import DjamixModel, Field
+
+    class TestModel(DjamixModel):
+        class Meta:
+            fixture = 'tests/fixtures/model1.yaml'
+
+    assert isinstance(TestModel.objects.get(pk=1).date, date)
+
+    class TestModel2(DjamixModel):
+        date = Field(lambda x: datetime.combine(x, time.min))
+
+        class Meta:
+            fixture = 'tests/fixtures/model1.yaml'
+
+    assert isinstance(TestModel2.objects.get(pk=1).date, datetime)
+
+
+def test_custom_model_method():
+
+    from djamix import DjamixModel
+
+    class TestModel(DjamixModel):
+        class Meta:
+            fixture = 'tests/fixtures/model1.yaml'
+
+        def dt(self):
+            return datetime.combine(self.date, time.min)
+
+    assert isinstance(TestModel.objects.get(pk=1).date, date)
+    assert isinstance(TestModel.objects.get(pk=1).dt(), datetime)
+
+    t = TestModel.objects.get(pk=1)
+    assert t.date != t.dt()
+    assert t.date == t.dt().date()
 
 
 # =======================

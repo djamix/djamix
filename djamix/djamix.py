@@ -121,7 +121,13 @@ class FK:
 
     def as_fk_description(self, new_local_field):
         if not (self.from_field or self.to_field):
-            return self.target_class
+            return {
+                new_local_field: (
+                    new_local_field,
+                    self.target_class,
+                    'pk'
+                )
+            }
 
         return {
             self.from_field: (

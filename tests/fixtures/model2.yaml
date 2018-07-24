@@ -2,6 +2,9 @@
 
 - m1_text: 'foo'
   message: "This is foo"
+  # m1 with pk1 is different than m1_text = foo
+  m1: 1
 
 - m1_text: 'hello'
   message: "This is 42"
+  m1: 2

@@ -251,6 +251,20 @@ def test_fkeys():
                 fixture = 'tests/fixtures/model2.yaml'
                 enforce_schema = True
 
+    # also, test default behaviour w/o specifying fields
+    class TestModel4(DjamixModel):
+        m1 = FK(TestModel1)
+
+        class Meta:
+            fixture = 'tests/fixtures/model2.yaml'
+
+    assert isinstance(TestModel4.objects.get(pk=1).m1, TestModel1)
+    assert isinstance(TestModel4.objects.get(pk=2).m1, TestModel1)
+
+    assert TestModel4.objects.get(pk=1).m1.id == 1
+    assert TestModel4.objects.get(pk=1).message == 'This is foo'
+    assert TestModel4.objects.get(pk=1).m1.baz == 'random'
+
 
 # =======================
 # Testing views

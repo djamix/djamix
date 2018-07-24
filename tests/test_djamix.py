@@ -220,6 +220,38 @@ def test_custom_model_method():
     assert t.date == t.dt().date()
 
 
+def test_fkeys():
+    from djamix import DjamixModel, FK
+
+    class TestModel1(DjamixModel):
+        class Meta:
+            fixture = 'tests/fixtures/model1.yaml'
+
+    class TestModel2(DjamixModel):
+        test_model1 = FK(TestModel1, 'm1_text', 'baz')
+
+        class Meta:
+            fixture = 'tests/fixtures/model2.yaml'
+
+    # This will work fine even though we have FK data in model2 that doesn't
+    # match anything in model1...
+    hello = TestModel2.objects.get(m1_text='hello')
+    assert isinstance(hello.test_model1, TestModel1)
+    assert hello.test_model1.foo == 5
+    assert hello.test_model1.date == date(2018, 10, 13)
+    assert hello.message == "This is 42"
+
+    # ... however if enforce_schema is set to True, it will return DoesNotExist
+    # if it finds any missing FK entries
+    with raises(TestModel1.DoesNotExist):
+        class TestModel3(DjamixModel):
+            test_model1 = FK(TestModel1, 'm1_text', 'baz')
+
+            class Meta:
+                fixture = 'tests/fixtures/model2.yaml'
+                enforce_schema = True
+
+
 # =======================
 # Testing views
 # =======================

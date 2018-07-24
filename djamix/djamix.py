@@ -408,8 +408,9 @@ class DjamixModelMeta(type):
             print("Creating ", new_class_name, bases, body)
         base_cls = super().__new__(cls, new_class_name, bases, body)
 
-        fixture       = getattr(body['Meta'], 'fixture', None)
-        delimiter     = getattr(body['Meta'], 'delimiter', None)
+        fixture        = getattr(body['Meta'], 'fixture', None)
+        delimiter      = getattr(body['Meta'], 'delimiter', None)
+        enforce_schema = getattr(body['Meta'], 'enforce_schema', None)
 
         field_types = {}
         # dynamic filed_types...
@@ -495,7 +496,15 @@ class DjamixModelMeta(type):
                         new_local_field, target_class, target_field = fkeys[k]
 
                         if v:
-                            v = target_class.objects.get(**{target_field: v})
+                            try:
+                                v = target_class.objects.get(
+                                    **{target_field: v}
+                                )
+                            except target_class.DoesNotExist as e:
+                                if enforce_schema:
+                                    raise e
+                                else:
+                                    v = None
                         else:
                             v = None
 

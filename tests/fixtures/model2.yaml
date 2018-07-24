@@ -1,0 +1,7 @@
+---
+
+- m1_text: 'foo'
+  message: "This is foo"
+
+- m1_text: 'hello'
+  message: "This is 42"

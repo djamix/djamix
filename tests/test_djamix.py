@@ -74,6 +74,9 @@ def TestModel():
         class Meta:
             fixture = 'tests/fixtures/model1.yaml'
 
+        def uppercase_baz(self):
+            return self.baz.upper()
+
     return TestModel
 
 
@@ -170,6 +173,33 @@ def test_orm_order_by(TestModel):
     for x, y in zip(TestModel.objects.order_by('date'), dates):
         assert x.date == y
 
+    t1 = [x.foo for x in TestModel.objects.order_by('type', 'color')]
+    t2 = [3, 1, 7, 5]
+    assert t1 == t2
+
+
+def test_orm_predefined_ordering():
+
+    from djamix import DjamixModel
+
+    class TestModel(DjamixModel):
+        class Meta:
+            fixture = 'tests/fixtures/model1.yaml'
+            ordering = ['type']
+
+    t1 = [x.foo for x in TestModel.objects.all()]
+    t2 = [1, 3, 5, 7]
+    assert t1 == t2
+
+    class TestModel(DjamixModel):
+        class Meta:
+            fixture = 'tests/fixtures/model1.yaml'
+            ordering = ['type', 'color']
+
+    t1 = [x.foo for x in TestModel.objects.all()]
+    t2 = [3, 1, 7, 5]
+    assert t1 == t2
+
 
 def test_orm_groupby(TestModel):
     qs = TestModel.objects.groupby(lambda x: x.date.year)
@@ -180,6 +210,15 @@ def test_orm_groupby(TestModel):
     assert len(qs) == 3
     assert dict(qs).keys() == {2018, 2019, 2020}
     assert len(dict(qs)[2018]) == 2
+
+
+def test_filtering_and_ordering_via_custom_model_methods(TestModel):
+
+    assert TestModel.objects.filter(uppercase_baz='HELLO').count() == 1
+
+    assert [
+        t.uppercase_baz() for t in TestModel.objects.order_by('uppercase_baz')
+    ] == ['HELLO', 'RANDOM', 'TEXT', 'WORLD']
 
 
 def test_custom_field_type_definition():

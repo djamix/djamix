@@ -924,21 +924,16 @@ def _patch_template_engines():
     django.template.loader.engines = engines
 
 
-def _setup_views_and_urlpatterns(global_context, defined_locals, paths):
+def _setup_views_and_urlpatterns(global_context, defined_locals, urls):
     global urlpatterns
+
     _context = defined_locals.get('context', {})
 
     global_context = dict(global_context, **_context)
     # extend global context with all the models
     global_context = dict(global_context, **djamix_models)
 
-    paths_description = urls_from_yaml(paths) if paths else None
-    # autoreload when urls are changed
-    autoreload._cached_filenames.append(paths)
-
-    urlpatterns = create_views_from_description(
-        paths_description, global_context
-    )
+    urlpatterns = create_views_from_description(urls, global_context)
     return urlpatterns
 
 
@@ -972,7 +967,35 @@ def _setup_taggables(defined_locals, djamix_models):
     register.simple_tag(async_data_url)
 
 
-def start(paths=None, **settings_kwargs):
+def describe_urls(urls):
+    output = []
+
+    if urls is None:
+        return output
+
+    elif isinstance(urls, str):
+        with open(urls, 'r') as opened_urls_file:
+            output = yaml.load(opened_urls_file)
+
+        # autoreload when urls are changed
+        autoreload._cached_filenames.append(urls)
+
+    elif isinstance(urls, list):
+        for url in urls:
+            # if url is a list of three element tuples, then parse that
+            assert len(url) == 3, "TODO: Come up with better error msg"
+            output.append({
+                'path': url[0],
+                'template': url[1],
+                'name': url[2]
+            })
+    else:
+        raise NotImplementedError("Unkown url format")
+
+    return output
+
+
+def start(urls=None, **settings_kwargs):
     """
     Main entry point for a djamix app
     """
@@ -990,8 +1013,11 @@ def start(paths=None, **settings_kwargs):
     afile = defined_locals.get('__file__', None)
     main_file_location = afile if afile else __file__
 
+    urls = urls or defined_locals.get('urls', None)
+    urls = describe_urls(urls)
+
     _setup_settings(**settings_kwargs)
-    _setup_views_and_urlpatterns(global_context, defined_locals, paths)
+    _setup_views_and_urlpatterns(global_context, defined_locals, urls)
     _setup_taggables(defined_locals, djamix_models)
 
     handle_custom_user_commands(sys.argv)

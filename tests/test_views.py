@@ -17,6 +17,11 @@ def client():
     return Client()
 
 
+def content(response):
+    """Small helper to simplify writing tests"""
+    return response.content.decode('utf-8').strip()
+
+
 def test_basic_urls_setup():
     start()
     assert reverse('home') == '/'
@@ -35,7 +40,7 @@ def test_custom_basic_urls_with_custom_templates_setup(client):
     assert reverse('foobar') == '/foobar2/'
     response = client.get('/foobar2/')
     assert response.status_code == 200
-    assert response.content.decode('utf-8').strip() == "<h1>It's a BAR!</h1>"
+    assert content(response) == "<h1>It's a BAR!</h1>"
 
 
 def test_handling_custom_template_variables(client):
@@ -43,7 +48,7 @@ def test_handling_custom_template_variables(client):
     context = {'hello': 'world'}  # NOQA
     start('tests/fixtures/paths1.yaml', CUSTOM_TEMPLATE_DIRS=template_paths)
     response = client.get(reverse('with_variables'))
-    assert response.content.decode('utf-8').strip() == "hello == world"
+    assert content(response) == "hello == world"
 
 
 def test_handling_custom_template_tags(client):
@@ -54,5 +59,4 @@ def test_handling_custom_template_tags(client):
 
     start('tests/fixtures/paths1.yaml', CUSTOM_TEMPLATE_DIRS=template_paths)
     response = client.get(reverse('with_templatetags'))
-    assert response.content.decode('utf-8').strip()\
-        == "greeting == Hello world"
+    assert content(response) == "greeting == Hello world"

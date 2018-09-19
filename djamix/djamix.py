@@ -116,8 +116,25 @@ class Field:
     keeping type information.
     """
 
-    def __init__(self, type):
-        self.type = type
+    def __init__(self, callable, type=None):
+        self.callable = callable
+        if not type:
+            self.type = callable
+        else:
+            self.type = type
+
+    def __repr__(self):
+        return 'Field(%s)' % self.type.__name__
+
+    def __str__(self):
+        return repr(self)
+
+    def __call__(self, *args):
+        return self.callable(*args)
+
+    @property
+    def __name__(self):
+        return str(self)
 
 
 class FK:
@@ -438,11 +455,23 @@ class DjamixModelMeta(type):
         delimiter      = getattr(body['Meta'], 'delimiter', None)
         enforce_schema = getattr(body['Meta'], 'enforce_schema', None)
 
-        field_types = {}
-        # dynamic filed_types...
+        # better name maybe? for accessing via []
+        setattr(base_cls, '_raw_fields', {})
+
+        setattr(base_cls, '_schema', OrderedDict())
+        setattr(base_cls, '_fkeys', {})
+        setattr(base_cls, '_id_sequence', itertools.count(cls.START_SEQID))
+        setattr(base_cls, 'id', None)
+        setattr(base_cls, 'uuid', None)
+
+        # pre-populate schema
+        base_cls._schema['id'] = int
+        base_cls._schema['pk'] = int
+        base_cls._schema['uuid'] = str
+
         for key, value in body.items():
             if isinstance(value, Field):
-                field_types[key] = value.type
+                base_cls._schema[key] = value
 
         # TODO get a proper FK implementation for now replacing marking with
         # Meta.fkeys to using FK for producing the same dictionary
@@ -452,37 +481,26 @@ class DjamixModelMeta(type):
                 fkeys[key] = value
 
         managers = cls.extract_managers(body)
+
         if 'objects' not in managers:
             managers['objects'] = DjamixManager
 
-        setattr(base_cls, 'BASE_FIELDS', [])
-        # better name maybe? for accessing via []
-        setattr(base_cls, '_raw_fields', {})
-        setattr(base_cls, '_schema', OrderedDict())
-        setattr(base_cls, '_fkeys', {})
-        setattr(base_cls, '_id_sequence', itertools.count(cls.START_SEQID))
+        if fixture:
+            autoreload._cached_filenames.append(fixture)
 
-        # fill with data
         objects = []
-        # using this instead of enumerate because it might be overwritten by a
-        # value and then we want to just keep incrementing
-        base_cls.BASE_FIELDS.append('id')
-        base_cls.BASE_FIELDS.append('pk')
-        base_cls._schema['id'] = int
-        base_cls._schema['pk'] = int
-        base_cls._schema['uuid'] = str
-        base_cls._reverse_relationships = {}
-        setattr(base_cls, 'id', None)
-        setattr(base_cls, 'uuid', None)
-
-        autoreload._cached_filenames.append(fixture)
+        # TODO This could probably be replaced with None
+        EMPTY_LIST_OF_RECORDS = []  # readonly
 
         if not fixture:
+            if new_class_name == 'DjamixModel':
+                return base_cls
+
             for manager_name, manager_class in managers.items():
                 setattr(
                     base_cls,
                     manager_name,
-                    manager_class([], base_cls)
+                    manager_class(EMPTY_LIST_OF_RECORDS, base_cls)
                 )
 
             djamix_models[new_class_name] = base_cls
@@ -501,28 +519,13 @@ class DjamixModelMeta(type):
             else:
                 raise FixtureError("Unusported fixture type")
 
-        for r in records:
+        for record in records:
             c = base_cls()
 
-            for k, v in r.items():
-                # this is useful for CSVs that have keys with spaces, etc.
-                accessible_name = make_accessible_name(k)
-
-                if k not in base_cls.BASE_FIELDS:
-                    base_cls.BASE_FIELDS.append(accessible_name)
-                    base_cls._raw_fields[k] = accessible_name
-
-                # same as BASEFIELDS once works, remove basefields...
-                if accessible_name in field_types:
-                    v = field_types[accessible_name](v)
-
-                if k not in base_cls._schema:
-                    if k in field_types:
-                        base_cls._schema[accessible_name] = field_types[k]
-                    else:
-                        base_cls._schema[accessible_name] = type(v)
-
-                setattr(c, accessible_name, v)
+            for k, v in record.items():
+                # if new_class_name == 'TestModelSuper123' and k == 'date':
+                #     import pdb; pdb.set_trace()
+                c.set_attribute_with_accessible_name(k, v)
 
                 if fkeys and k in fkeys:
 
@@ -562,10 +565,10 @@ class DjamixModelMeta(type):
 
                     # TODO: figure out reverse managers (aka _set)
 
-            if 'uuid' not in r.keys():
+            if 'uuid' not in record.keys():
                 # create a stable string represantion of the record
                 # if it's not changed it will have the same uuid
-                sorted_record = ''.join(sorted(str(r)))
+                sorted_record = ''.join(sorted(str(record)))
                 # using random, but static namespace
                 setattr(c, 'uuid', str(uuid5(NAMESPACE_URL, sorted_record)))
 
@@ -582,8 +585,8 @@ class DjamixModelMeta(type):
 def print_model_summary(name, cls):
     print("Created %s" % name)
     print('\n'.join(
-        '\t%s -> %s' % (field, type.__name__)
-        for field, type in cls._schema.items()
+        '\t%s -> %s' % (field_name, field.__name__)
+        for field_name, field in cls._schema.items()
     ))
     print('\n'.join(
         f'\t{fieldname} -> {fk}' for fieldname, fk in cls._fkeys.items()
@@ -626,10 +629,38 @@ class DjamixModel(metaclass=DjamixModelMeta):
         return "<%s: %s>" % (self.__class__.__name__, self.uuid)
 
     def to_dict(self):
-        return {f: getattr(self, f, None) for f in self.BASE_FIELDS}
+        return {f: getattr(self, f, None)
+                for f in self.__class__._schema.keys()}
 
     def dump_to_yaml(self):
         return yaml.dump(self.to_dict())
+
+    def set_attribute_with_accessible_name(self, key, value):
+        # this is useful for CSVs that have columns with spaces, etc.
+        accessible_name = make_accessible_name(key)
+        schema = self.__class__._schema
+
+        if accessible_name in schema:
+            typedef = schema[accessible_name]
+            if isinstance(typedef, Field):
+                desired_type = typedef.type
+                extractor = typedef.callable
+            else:
+                desired_type = extractor = typedef
+
+            # This is ugly on purpose. We don't want to use isinstance because
+            # we want the exact type, not including the subclasses
+            # (for example we want exactly datetime, not just date)
+            if type(value) != desired_type:  # NOQA
+                value = extractor(value)
+
+        else:
+            schema[accessible_name] = type(value)
+
+        # not sure if we even need this step...
+        self.__class__._schema = schema
+
+        setattr(self, accessible_name, value)
 
 
 class DjamixCompositeModelMeta(type):

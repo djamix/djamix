@@ -169,13 +169,17 @@ def test_custom_field_type_definition():
 
     assert isinstance(TestModel.objects.get(pk=1).date, date)
 
-    class TestModel2(DjamixModel):
-        date = Field(lambda x: datetime.combine(x, time.min))
+    class UniqueModelTesting(DjamixModel):
+        # field is still called date but actually returns a datetime
+        # TODO: we should reverse this order. take type first and extractor 2nd
+        date = Field(lambda x: datetime.combine(x, time.min), datetime)
 
         class Meta:
             fixture = 'tests/fixtures/model1.yaml'
 
-    assert isinstance(TestModel2.objects.get(pk=1).date, datetime)
+    print(UniqueModelTesting._schema)
+    print(UniqueModelTesting.objects.get(pk=1)._schema)
+    assert isinstance(UniqueModelTesting.objects.get(pk=1).date, datetime)
 
 
 def test_custom_model_method():
@@ -216,6 +220,8 @@ def test_fkeys():
         def __str__(self):
             return self.name
 
+    # This will work fine even though there are cities that link to countries
+    # that doesn't exist.
     class City(DjamixModel):
         country = FK(Country, 'country_iso', 'iso')
 
@@ -225,8 +231,6 @@ def test_fkeys():
         def __str__(self):
             return self.name
 
-    # This will work fine even though we have FK data in model2 that doesn't
-    # match anything in model1...
     krk = City.objects.get(name='Krakow')
     assert isinstance(krk.country, Country)
     assert krk.country.name == "Poland"

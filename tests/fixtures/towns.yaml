@@ -1,0 +1,13 @@
+---
+
+- name: London
+  country: 2
+  population: 10mil
+
+- name: Krakow
+  country: 1
+  population: 1mil
+
+- name: Santo Subito
+  country: 000
+  population: 2mil

@@ -1,0 +1,13 @@
+---
+
+- name: Poland
+  iso: pl
+  currency: pln
+  location: CEE
+  random_date: 2018-10-13
+
+- name: UK
+  iso: gb
+  currency: gbp
+  location: NWE
+  random_date: 2000-01-01

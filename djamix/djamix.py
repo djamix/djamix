@@ -56,6 +56,14 @@ MEDIA_ROOT = "media/"
 DEBUG = False
 
 
+class DjamixException(Exception):
+    pass
+
+
+class FixtureError(DjamixException, ValueError):
+    pass
+
+
 def two_random_complementary_colors():
     """
     This is not very useful but we use it on the default template to randomise
@@ -114,10 +122,19 @@ class Field:
 
 class FK:
 
-    def __init__(self, target_class, from_field=None, to_field=None):
+    def __init__(self, target_class, from_field=None, to_field='id'):
         self.target_class = target_class
         self.from_field = from_field
         self.to_field = to_field
+
+    def __repr__(self):
+        return f'FK({self.target_class.__name__},'\
+            f' from_field="{self.from_field}",'\
+            f' to_field="{self.to_field}")'
+
+    @property
+    def target_field(self):
+        return self.to_field
 
     def as_fk_description(self, new_local_field):
         if not (self.from_field or self.to_field):
@@ -432,7 +449,7 @@ class DjamixModelMeta(type):
         fkeys = {}
         for key, value in body.items():
             if isinstance(value, FK):
-                fkeys.update(value.as_fk_description(key))
+                fkeys[key] = value
 
         managers = cls.extract_managers(body)
         if 'objects' not in managers:
@@ -453,7 +470,10 @@ class DjamixModelMeta(type):
         base_cls.BASE_FIELDS.append('pk')
         base_cls._schema['id'] = int
         base_cls._schema['pk'] = int
+        base_cls._schema['uuid'] = str
+        base_cls._reverse_relationships = {}
         setattr(base_cls, 'id', None)
+        setattr(base_cls, 'uuid', None)
 
         autoreload._cached_filenames.append(fixture)
 
@@ -474,10 +494,12 @@ class DjamixModelMeta(type):
             # TODO: add mimetype based load of CSV and JSON files
             if fixture.split('.')[-1] in ['yml', 'yaml']:
                 records = yaml.load(file)
+                if not records:
+                    raise FixtureError(f"Sorry the file {fixture} is empty :(")
             elif fixture.split('.')[-1].lower() in ['csv', 'tsv']:
                 records = list(csv.DictReader(file, delimiter=delimiter))
             else:
-                raise ValueError("Unusported fixture type")
+                raise FixtureError("Unusported fixture type")
 
         for r in records:
             c = base_cls()
@@ -504,19 +526,15 @@ class DjamixModelMeta(type):
 
                 if fkeys and k in fkeys:
 
-                    if isinstance(fkeys[k], tuple):
-                        # "field_name": (
-                        #     'new_field', TargetClass, 'target_field'
-                        # )
-                        assert len(fkeys[k]) == 3
-                        new_local_field, target_class, target_field = fkeys[k]
+                    if isinstance(fkeys[k], FK):
+                        fk = fkeys[k]
 
                         if v:
                             try:
-                                v = target_class.objects.get(
-                                    **{target_field: v}
+                                v = fk.target_class.objects.get(
+                                    **{fk.target_field: v}
                                 )
-                            except target_class.DoesNotExist as e:
+                            except fk.target_class.DoesNotExist as e:
                                 if enforce_schema:
                                     raise e
                                 else:
@@ -524,10 +542,13 @@ class DjamixModelMeta(type):
                         else:
                             v = None
 
-                        setattr(c, new_local_field, v)
-                        c._fkeys[new_local_field] = (target_class,
-                                                     target_field)
+                        assert not isinstance(v, FK)
+                        setattr(c, k, v)
+                        c._fkeys[k] = fk
 
+                    """
+                    # TODO/FIXME
+                    I don't understand why this part is important
                     elif k.endswith('_id'):
                         v = fkeys[k].objects.get(id=v)
                         setattr(c, k[:-3], v)
@@ -537,6 +558,7 @@ class DjamixModelMeta(type):
                         v = fkeys[k].objects.get(uuid=v)
                         setattr(c, k[:-5], v)
                         c._fkeys[k] = (fkeys[k], 'uuid')
+                    """
 
                     # TODO: figure out reverse managers (aka _set)
 
@@ -564,8 +586,7 @@ def print_model_summary(name, cls):
         for field, type in cls._schema.items()
     ))
     print('\n'.join(
-        '\t%s -> FK(%s, %s)' % (fk, description[0].__name__, description[1])
-        for fk, description in cls._fkeys.items()
+        f'\t{fieldname} -> {fk}' for fieldname, fk in cls._fkeys.items()
     ))
 
 
@@ -586,9 +607,6 @@ class DjamixModel(metaclass=DjamixModelMeta):
         for k, v in kwargs.items():
             setattr(self, k, v)
 
-        if 'id' in kwargs:
-            print(kwargs)
-
         if self.id is None:
             self.id = next(self._id_sequence)
         else:
@@ -596,6 +614,9 @@ class DjamixModel(metaclass=DjamixModelMeta):
             assert self.id >= seqid,\
                 f"Your new seqid should be bigger than {seqid}"
             self.__class__._id_sequence = itertools.count(self.id + 1)
+
+        if self.uuid is None:
+            self.uuid = str(uuid4())  # TBD
 
     @property
     def pk(self):
@@ -642,7 +663,7 @@ class DjamixCompositeModelMeta(type):
         union_of_base_fields = list(
             set().union(*(m.BASE_FIELDS for m in compose_from))
         )
-        # print("\nUNION OF BFIELDS", union_of_base_fields)
+
         for r in records:
             c = base_cls()
 
@@ -1030,8 +1051,9 @@ def start(urls=None, **settings_kwargs):
     _setup_views_and_urlpatterns(global_context, defined_locals, urls)
     _setup_taggables(defined_locals, djamix_models)
 
-    handle_custom_user_commands(sys.argv)
-    execute_from_command_line(sys.argv)
+    if __name__ == "__main__":
+        handle_custom_user_commands(sys.argv)
+        execute_from_command_line(sys.argv)
 
 
 def rel(*x):

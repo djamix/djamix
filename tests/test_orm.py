@@ -197,77 +197,106 @@ def test_custom_model_method():
     assert t.date == t.dt().date()
 
 
+def test_empty_fixture_file_raises_fixture_error():
+    from djamix import DjamixModel, FixtureError
+
+    with raises(FixtureError):
+        class EmptyModel(DjamixModel):
+            class Meta:
+                fixture = 'tests/fixtures/empty.yaml'
+
+
 def test_fkeys():
     from djamix import DjamixModel, FK
 
-    class TestModel1(DjamixModel):
+    class Country(DjamixModel):
         class Meta:
-            fixture = 'tests/fixtures/model1.yaml'
+            fixture = 'tests/fixtures/countries.yaml'
 
-    class TestModel2(DjamixModel):
-        test_model1 = FK(TestModel1, 'm1_text', 'baz')
+        def __str__(self):
+            return self.name
+
+    class City(DjamixModel):
+        country = FK(Country, 'country_iso', 'iso')
 
         class Meta:
-            fixture = 'tests/fixtures/model2.yaml'
+            fixture = 'tests/fixtures/cities.yaml'
+
+        def __str__(self):
+            return self.name
 
     # This will work fine even though we have FK data in model2 that doesn't
     # match anything in model1...
-    hello = TestModel2.objects.get(m1_text='hello')
-    assert isinstance(hello.test_model1, TestModel1)
-    assert hello.test_model1.foo == 5
-    assert hello.test_model1.date == date(2018, 10, 13)
-    assert hello.message == "This is 42"
+    krk = City.objects.get(name='Krakow')
+    assert isinstance(krk.country, Country)
+    assert krk.country.name == "Poland"
+    assert krk.country.random_date == date(2018, 10, 13)
+    assert krk.population == "1mil"
 
     # ... however if enforce_schema is set to True, it will return DoesNotExist
     # if it finds any missing FK entries
-    with raises(TestModel1.DoesNotExist):
-        class TestModel3(DjamixModel):
-            test_model1 = FK(TestModel1, 'm1_text', 'baz')
+    with raises(Country.DoesNotExist):
+        class City(DjamixModel):
+            country = FK(Country, 'country_iso', 'iso')
 
             class Meta:
-                fixture = 'tests/fixtures/model2.yaml'
+                fixture = 'tests/fixtures/cities.yaml'
                 enforce_schema = True
 
     # also, test default behaviour w/o specifying fields
-    class TestModel4(DjamixModel):
-        m1 = FK(TestModel1)
+    class Town(DjamixModel):
+        country = FK(Country)
 
         class Meta:
-            fixture = 'tests/fixtures/model2.yaml'
+            fixture = 'tests/fixtures/towns.yaml'
 
-    assert isinstance(TestModel4.objects.get(pk=1).m1, TestModel1)
-    assert isinstance(TestModel4.objects.get(pk=2).m1, TestModel1)
+    assert isinstance(Town.objects.get(pk=1).country, Country)
+    assert isinstance(Town.objects.get(pk=2).country, Country)
 
-    assert TestModel4.objects.get(pk=1).m1.id == 1
-    assert TestModel4.objects.get(pk=1).message == 'This is foo'
-    assert TestModel4.objects.get(pk=1).m1.baz == 'random'
+    assert Town.objects.get(pk=1).country.id == 2
+    assert Town.objects.get(pk=1).country.location == 'NWE'
 
 
 def test_autoseqid_behaviour():
     from djamix import DjamixModel
 
-    class TestModel(DjamixModel):
+    class Foo(DjamixModel):
 
         class Meta:
             pass
 
-    t1 = TestModel()
-    assert t1.id == 1
+    class Bar(DjamixModel):
 
-    t2 = TestModel()
-    assert t2.id == 2
+        class Meta:
+            pass
 
-    t45 = TestModel(id=45)
-    assert t45.id == 45
+    f1 = Foo()
+    assert f1.id == 1
 
-    t46 = TestModel()
-    assert t46.id == 46
+    f2 = Foo()
+    assert f2.id == 2
+
+    f45 = Foo(id=45)
+    assert f45.id == 45
+
+    f46 = Foo()
+    assert f46.id == 46
+
+    b1 = Bar()
+    assert b1.id == 1
+
+    b2 = Bar()
+    assert b2.id == 2
+
+    f = Foo()
+    assert f.id == 47
 
     with raises(AssertionError):
-        TestModel(id=27)
+        Foo(id=27)
 
 
 def test_fkeys_api():
+    """Testing non-fixture based models"""
     from djamix import DjamixModel, FK
 
     class Parent(DjamixModel):
@@ -281,12 +310,7 @@ def test_fkeys_api():
         class Meta:
             pass
 
-    parent = Parent(name="Joe")
-    child1 = Child(parent=parent, name="Kid")
-
-    # check auto sequences
-    assert child1.id == 1
-    assert parent.id == 1
-    assert child1.parent_id == 1
-
-    assert child1.parent.name == "Joe"
+    """
+    TODO: implement reverse relationships in the DjamixModelMeta class.
+    (something like django's foo.set_all()
+    """

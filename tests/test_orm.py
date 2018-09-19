@@ -241,3 +241,52 @@ def test_fkeys():
     assert TestModel4.objects.get(pk=1).m1.id == 1
     assert TestModel4.objects.get(pk=1).message == 'This is foo'
     assert TestModel4.objects.get(pk=1).m1.baz == 'random'
+
+
+def test_autoseqid_behaviour():
+    from djamix import DjamixModel
+
+    class TestModel(DjamixModel):
+
+        class Meta:
+            pass
+
+    t1 = TestModel()
+    assert t1.id == 1
+
+    t2 = TestModel()
+    assert t2.id == 2
+
+    t45 = TestModel(id=45)
+    assert t45.id == 45
+
+    t46 = TestModel()
+    assert t46.id == 46
+
+    with raises(AssertionError):
+        TestModel(id=27)
+
+
+def test_fkeys_api():
+    from djamix import DjamixModel, FK
+
+    class Parent(DjamixModel):
+
+        class Meta:
+            pass
+
+    class Child(DjamixModel):
+        parent = FK(Parent)
+
+        class Meta:
+            pass
+
+    parent = Parent(name="Joe")
+    child1 = Child(parent=parent, name="Kid")
+
+    # check auto sequences
+    assert child1.id == 1
+    assert parent.id == 1
+    assert child1.parent_id == 1
+
+    assert child1.parent.name == "Joe"

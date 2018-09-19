@@ -389,6 +389,8 @@ class DjamixManager:
 
 class DjamixModelMeta(type):
 
+    START_SEQID = 1
+
     @staticmethod
     def extract_managers(body):
         """
@@ -408,7 +410,8 @@ class DjamixModelMeta(type):
 
     def __new__(cls, new_class_name, bases, body):
         if 'Meta' not in body:
-            raise TypeError("Meta not defined")
+            # raise TypeError("Meta not defined")
+            body['Meta'] = object()
 
         if DEBUG:
             print("Creating ", new_class_name, bases, body)
@@ -435,15 +438,37 @@ class DjamixModelMeta(type):
         if 'objects' not in managers:
             managers['objects'] = DjamixManager
 
-        if not fixture:
-            if new_class_name != 'DjamixModel':
-                # Handling special cases if user-defined model doesnt have
-                # DataFile provided
-                raise ValueError("No Meta.fixture provided for %s",
-                                 new_class_name)
-            return base_cls
+        setattr(base_cls, 'BASE_FIELDS', [])
+        # better name maybe? for accessing via []
+        setattr(base_cls, '_raw_fields', {})
+        setattr(base_cls, '_schema', OrderedDict())
+        setattr(base_cls, '_fkeys', {})
+        setattr(base_cls, '_id_sequence', itertools.count(cls.START_SEQID))
+
+        # fill with data
+        objects = []
+        # using this instead of enumerate because it might be overwritten by a
+        # value and then we want to just keep incrementing
+        base_cls.BASE_FIELDS.append('id')
+        base_cls.BASE_FIELDS.append('pk')
+        base_cls._schema['id'] = int
+        base_cls._schema['pk'] = int
+        setattr(base_cls, 'id', None)
 
         autoreload._cached_filenames.append(fixture)
+
+        if not fixture:
+            for manager_name, manager_class in managers.items():
+                setattr(
+                    base_cls,
+                    manager_name,
+                    manager_class([], base_cls)
+                )
+
+            djamix_models[new_class_name] = base_cls
+            print_model_summary(new_class_name, base_cls)
+
+            return base_cls
 
         with open(fixture) as file:
             # TODO: add mimetype based load of CSV and JSON files
@@ -454,21 +479,6 @@ class DjamixModelMeta(type):
             else:
                 raise ValueError("Unusported fixture type")
 
-        setattr(base_cls, 'BASE_FIELDS', [])
-        # better name maybe? for accessing via []
-        setattr(base_cls, '_raw_fields', {})
-        setattr(base_cls, '_schema', OrderedDict())
-        setattr(base_cls, '_fkeys', {})
-
-        # fill with data
-        objects = []
-        # using this instead of enumerate because it might be overwritten by a
-        # value and then we want to just keep incrementing
-        seqid = 1
-        base_cls.BASE_FIELDS.append('id')
-        base_cls.BASE_FIELDS.append('pk')
-        base_cls._schema['id'] = int
-        base_cls._schema['pk'] = int
         for r in records:
             c = base_cls()
 
@@ -537,13 +547,6 @@ class DjamixModelMeta(type):
                 # using random, but static namespace
                 setattr(c, 'uuid', str(uuid5(NAMESPACE_URL, sorted_record)))
 
-            if 'id' in r.keys():
-                seqid = r['id']
-
-            setattr(c, 'id', seqid)
-            setattr(c, 'pk', seqid)
-            seqid += 1
-
             objects.append(c)
 
         for manager_name, manager_class in managers.items():
@@ -579,8 +582,24 @@ class DjamixModel(metaclass=DjamixModelMeta):
 
     def __init__(self, **kwargs):
         super().__init__()
+
         for k, v in kwargs.items():
             setattr(self, k, v)
+
+        if 'id' in kwargs:
+            print(kwargs)
+
+        if self.id is None:
+            self.id = next(self._id_sequence)
+        else:
+            seqid = next(self.__class__._id_sequence)
+            assert self.id >= seqid,\
+                f"Your new seqid should be bigger than {seqid}"
+            self.__class__._id_sequence = itertools.count(self.id + 1)
+
+    @property
+    def pk(self):
+        return self.id
 
     def __repr__(self):
         return "<%s: %s>" % (self.__class__.__name__, self.uuid)
@@ -792,16 +811,6 @@ def extract_taggable_from_locals(defined_locals):
     return output
 
 
-def urls_from_yaml(yaml_file_path):
-    """
-    Local helper
-    """
-    with open(yaml_file_path) as uf:
-        views_description = yaml.load(uf)
-
-    return views_description
-
-
 def create_views_from_description(descriptions, global_context):
     """
     Takes list of dictionaries with descriptions and global context,
@@ -968,6 +977,7 @@ def _setup_taggables(defined_locals, djamix_models):
 
 
 def describe_urls(urls):
+    # TODO: update the name to something more meaningful
     output = []
 
     if urls is None:
@@ -1046,6 +1056,10 @@ if __name__ == '__main__':
 
     if sys.argv[1] == 'create_project':
         create_project(sys.argv[2])
+
+    elif sys.argv[1].endswith('yml'):
+        # TODO make it possible to run directly from yml file w/o py
+        print("TODO: Running from yml file NotImplementedYet")
 
     else:
         print("Usage: djamix.py create_project <project_name>")

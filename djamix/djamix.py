@@ -453,7 +453,7 @@ class DjamixModelMeta(type):
 
         fixture        = getattr(body['Meta'], 'fixture', None)
         delimiter      = getattr(body['Meta'], 'delimiter', None)
-        enforce_schema = getattr(body['Meta'], 'enforce_schema', None)
+        # enforce_schema = getattr(body['Meta'], 'enforce_schema', None)
 
         # better name maybe? for accessing via []
         setattr(base_cls, '_raw_fields', {})
@@ -473,12 +473,9 @@ class DjamixModelMeta(type):
             if isinstance(value, Field):
                 base_cls._schema[key] = value
 
-        # TODO get a proper FK implementation for now replacing marking with
-        # Meta.fkeys to using FK for producing the same dictionary
-        fkeys = {}
         for key, value in body.items():
             if isinstance(value, FK):
-                fkeys[key] = value
+                base_cls._fkeys[key] = value
 
         managers = cls.extract_managers(body)
 
@@ -523,46 +520,10 @@ class DjamixModelMeta(type):
             c = base_cls()
 
             for k, v in record.items():
-                # if new_class_name == 'TestModelSuper123' and k == 'date':
-                #     import pdb; pdb.set_trace()
                 c.set_attribute_with_accessible_name(k, v)
 
-                if fkeys and k in fkeys:
-
-                    if isinstance(fkeys[k], FK):
-                        fk = fkeys[k]
-
-                        if v:
-                            try:
-                                v = fk.target_class.objects.get(
-                                    **{fk.target_field: v}
-                                )
-                            except fk.target_class.DoesNotExist as e:
-                                if enforce_schema:
-                                    raise e
-                                else:
-                                    v = None
-                        else:
-                            v = None
-
-                        assert not isinstance(v, FK)
-                        setattr(c, k, v)
-                        c._fkeys[k] = fk
-
-                    """
-                    # TODO/FIXME
-                    I don't understand why this part is important
-                    elif k.endswith('_id'):
-                        v = fkeys[k].objects.get(id=v)
-                        setattr(c, k[:-3], v)
-                        c._fkeys[k] = (fkeys[k], 'id')
-
-                    elif k.endswith('_uuid'):
-                        v = fkeys[k].objects.get(uuid=v)
-                        setattr(c, k[:-5], v)
-                        c._fkeys[k] = (fkeys[k], 'uuid')
-                    """
-
+                if base_cls._fkeys and k in base_cls._fkeys:
+                    c.set_foreign_key(k, v)
                     # TODO: figure out reverse managers (aka _set)
 
             if 'uuid' not in record.keys():
@@ -634,6 +595,24 @@ class DjamixModel(metaclass=DjamixModelMeta):
 
     def dump_to_yaml(self):
         return yaml.dump(self.to_dict())
+
+    def set_foreign_key(self, key, value):
+
+        fk = self.__class__._fkeys[key]
+        assert isinstance(fk, FK)
+
+        try:
+            value = fk.target_class.objects.get(
+                **{fk.target_field: value}
+            )
+        except fk.target_class.DoesNotExist as e:
+            if getattr(self.Meta, 'enforce_schema', None):
+                raise e
+            else:
+                value = None
+
+        assert not isinstance(value, FK)
+        setattr(self, key, value)
 
     def set_attribute_with_accessible_name(self, key, value):
         # this is useful for CSVs that have columns with spaces, etc.

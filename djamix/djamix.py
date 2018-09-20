@@ -1087,9 +1087,8 @@ def start(urls=None, **settings_kwargs):
     _setup_views_and_urlpatterns(global_context, defined_locals, urls)
     _setup_taggables(defined_locals, djamix_models)
 
-    if __name__ == "__main__":
-        handle_custom_user_commands(sys.argv)
-        execute_from_command_line(sys.argv)
+    handle_custom_user_commands(sys.argv)
+    execute_from_command_line(sys.argv)
 
 
 def rel(*x):

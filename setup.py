@@ -18,6 +18,11 @@ setup(
     description="Faster mockups and prototypes with django-like environment. "
     "Using django in the background",
     long_description=README,
+    install_requires=[
+        'django>=2.1',
+        'pyyaml',
+        'faker',
+    ],
     # url='https://github.com/djamix/djamix',
     # author='Artur Czepiel',
     # author_email='czepiel.artur+djamix@gmail.com',

@@ -116,12 +116,9 @@ class Field:
     keeping type information.
     """
 
-    def __init__(self, callable, type=None):
-        self.callable = callable
-        if not type:
-            self.type = callable
-        else:
-            self.type = type
+    def __init__(self, type, extractor=None):
+        self.type = type
+        self.extractor = extractor or type
 
     def __repr__(self):
         return 'Field(%s)' % self.type.__name__
@@ -130,7 +127,7 @@ class Field:
         return repr(self)
 
     def __call__(self, *args):
-        return self.callable(*args)
+        return self.extractor(*args)
 
     @property
     def __name__(self):
@@ -652,7 +649,7 @@ class DjamixModel(metaclass=DjamixModelMeta):
             typedef = schema[accessible_name]
             if isinstance(typedef, Field):
                 desired_type = typedef.type
-                extractor = typedef.callable
+                extractor = typedef.extractor
             else:
                 desired_type = extractor = typedef
 

@@ -189,9 +189,8 @@ def test_custom_field_type_definition():
     assert isinstance(Country.objects.get(pk=1).random_date, date)
 
     class CountryWithCustomField(DjamixModel):
-        # field is still called date but actually returns a datetime
-        # TODO: we should reverse this order. take type first and extractor 2nd
-        random_date = Field(lambda x: datetime.combine(x, time.min), datetime)
+        # field is still called random_date but actually returns a datetime
+        random_date = Field(datetime, lambda x: datetime.combine(x, time.min))
 
         class Meta:
             fixture = 'tests/fixtures/countries.yaml'

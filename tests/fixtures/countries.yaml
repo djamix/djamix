@@ -4,10 +4,22 @@
   iso: pl
   currency: pln
   location: CEE
-  random_date: 2018-10-13
+  random_date: 2000-01-01
+  continent: Europe
+  country_code: 48
 
 - name: UK
   iso: gb
   currency: gbp
   location: NWE
-  random_date: 2000-01-01
+  random_date: 2018-10-13
+  continent: Europe
+  country_code: 44
+
+- name: Narnia
+  iso: nn
+  currency: nnn
+  location: NNN
+  random_date: 2000-02-02
+  continent: Pangea
+  country_code: 46  # between UK and Poland – for testing ranges

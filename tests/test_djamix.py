@@ -24,33 +24,33 @@ def test_DjamixJSONEncoder():
     assert json.dumps({'asd': date(2018, 3, 2)}, cls=DjamixJSONEncoder)\
         == '{"asd": "2018-03-02"}'
 
-    class TestModel(DjamixModel):
+    class Country(DjamixModel):
 
         class Meta:
-            fixture = 'tests/fixtures/model1.yaml'
+            fixture = 'tests/fixtures/countries.yaml'
 
     # qs/manager is not serializable, unless DjamixJSONEncoder is used
     with raises(TypeError):
-        json.dumps({"qs": TestModel.objects.all()})
+        json.dumps({"qs": Country.objects.all()})
 
     json.dumps(
-        {"qs": TestModel.objects.filter(id__lte=2)},
+        {"qs": Country.objects.filter(id__lte=2)},
         cls=DjamixJSONEncoder
     )
 
     # However model is not serializble even with the proper Encoder...
-    t = TestModel.objects.all()[0]
+    t = Country.objects.all()[0]
     with raises(TypeError):
         json.dumps({"item": t}, cls=DjamixJSONEncoder)
 
     # ... unless to_rich_json_representation is implemented
-    class TestModel2(DjamixModel):
+    class CountryWithSerializer(DjamixModel):
 
         class Meta:
-            fixture = 'tests/fixtures/model1.yaml'
+            fixture = 'tests/fixtures/countries.yaml'
 
         def to_rich_json_representation(self):
             return vars(self)
 
-    t = TestModel2.objects.all()[0]
+    t = CountryWithSerializer.objects.all()[0]
     json.dumps({"item": t}, cls=DjamixJSONEncoder)

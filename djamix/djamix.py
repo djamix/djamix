@@ -425,12 +425,6 @@ class DjamixModelMeta(type):
 
     START_SEQID = 1
 
-    META_OPTIONS_WITH_DEFAULTS = [
-        ('fixture', None),
-        ('delimiter', None),
-        ('enforce_schema', False)
-    ]
-
     @staticmethod
     def extract_managers(body):
         """
@@ -530,7 +524,7 @@ class DjamixModelMeta(type):
         return new_model
 
     @classmethod
-    def handle_fixtures(cls, Meta, new_model):
+    def create_from_fixtures(cls, Meta, new_model):
         if Meta.fixture:
             autoreload._cached_filenames.append(Meta.fixture)
 
@@ -540,6 +534,20 @@ class DjamixModelMeta(type):
             return cls.create_instances_from_records(new_model, records)
         else:
             return []
+
+    @staticmethod
+    def handle_default_meta_options(Meta):
+        META_OPTIONS_WITH_DEFAULTS = [
+            ('fixture', None),
+            ('delimiter', None),
+            ('enforce_schema', False)
+        ]
+        for option, default in META_OPTIONS_WITH_DEFAULTS:
+            opt = getattr(Meta, option, None)
+            if opt is None:
+                setattr(Meta, option, default)
+
+        return Meta
 
     def __new__(cls, new_class_name, bases, body):
 
@@ -551,22 +559,15 @@ class DjamixModelMeta(type):
         if new_class_name == 'DjamixModel':
             return new_model
 
-        Meta = body['Meta']
-
-        for option, default in cls.META_OPTIONS_WITH_DEFAULTS:
-            opt = getattr(Meta, option, None)
-            if opt is None:
-                setattr(Meta, option, default)
+        Meta = cls.handle_default_meta_options(body['Meta'])
 
         new_model = cls.assign_default_attributes(new_model)
         new_model = cls.prepopulate_schema(new_model)
         new_model = cls.setup_fields_and_fkeys(new_model, body)
 
-        list_of_objects = cls.handle_fixtures(Meta, new_model)
+        records = cls.create_from_fixtures(Meta, new_model)
+        new_model = cls.extract_and_assign_managers(new_model, body, records)
 
-        new_model = cls.extract_and_assign_managers(
-            new_model, body, list_of_objects
-        )
         djamix_models[new_class_name] = new_model
         print_model_summary(new_class_name, new_model)
         return new_model

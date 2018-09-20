@@ -425,6 +425,12 @@ class DjamixModelMeta(type):
 
     START_SEQID = 1
 
+    META_OPTIONS_WITH_DEFAULTS = [
+        ('fixture', None),
+        ('delimiter', None),
+        ('enforce_schema', False)
+    ]
+
     @staticmethod
     def extract_managers(body):
         """
@@ -442,105 +448,128 @@ class DjamixModelMeta(type):
 
         return managers
 
-    def __new__(cls, new_class_name, bases, body):
-        if 'Meta' not in body:
-            # raise TypeError("Meta not defined")
-            body['Meta'] = object()
+    @staticmethod
+    def parse_records_file(fd, Meta):
+        # TODO: add mimetype based load of CSV and JSON files
+        if Meta.fixture.split('.')[-1] in ['yml', 'yaml']:
+            records = yaml.load(fd)
+            if not records:
+                raise FixtureError(
+                    f"Sorry the file {Meta.fixture} is empty :("
+                )
+        elif Meta.fixture.split('.')[-1].lower() in ['csv', 'tsv']:
+            records = list(csv.DictReader(fd, delimiter=Meta.delimiter))
+        else:
+            raise FixtureError("Unusported fixture type")
 
-        if DEBUG:
-            print("Creating ", new_class_name, bases, body)
-        base_cls = super().__new__(cls, new_class_name, bases, body)
+        return records
 
-        fixture        = getattr(body['Meta'], 'fixture', None)
-        delimiter      = getattr(body['Meta'], 'delimiter', None)
-        # enforce_schema = getattr(body['Meta'], 'enforce_schema', None)
+    @staticmethod
+    def create_instances_from_records(new_model, records):
+        output = []
+        for record in records:
+            new_object = new_model()
 
+            for fieldname, value in record.items():
+                new_object.set_attribute_with_accessible_name(fieldname, value)
+
+                if new_model._fkeys and fieldname in new_model._fkeys:
+                    new_object.set_foreign_key(fieldname, value)
+                    # TODO: figure out reverse managers (aka _set)
+
+            output.append(new_object)
+
+        return output
+
+    @staticmethod
+    def assign_managers(new_model, managers, list_of_objects):
+        for manager_name, manager_class in managers.items():
+            setattr(
+                new_model,
+                manager_name,
+                manager_class(list_of_objects, new_model)
+            )
+        return new_model
+
+    @classmethod
+    def assign_default_attributes(cls, new_model):
         # better name maybe? for accessing via []
-        setattr(base_cls, '_raw_fields', {})
+        setattr(new_model, '_raw_fields', {})
+        setattr(new_model, '_schema', OrderedDict())
+        setattr(new_model, '_fkeys', {})
+        setattr(new_model, '_id_sequence', itertools.count(cls.START_SEQID))
+        setattr(new_model, 'id', None)
+        setattr(new_model, 'uuid', None)
+        return new_model
 
-        setattr(base_cls, '_schema', OrderedDict())
-        setattr(base_cls, '_fkeys', {})
-        setattr(base_cls, '_id_sequence', itertools.count(cls.START_SEQID))
-        setattr(base_cls, 'id', None)
-        setattr(base_cls, 'uuid', None)
+    @staticmethod
+    def prepopulate_schema(new_model):
+        new_model._schema['id'] = int
+        new_model._schema['pk'] = int
+        new_model._schema['uuid'] = str
+        return new_model
 
-        # pre-populate schema
-        base_cls._schema['id'] = int
-        base_cls._schema['pk'] = int
-        base_cls._schema['uuid'] = str
-
+    @staticmethod
+    def setup_fields_and_fkeys(new_model, body):
         for key, value in body.items():
             if isinstance(value, Field):
-                base_cls._schema[key] = value
+                new_model._schema[key] = value
 
-        for key, value in body.items():
             if isinstance(value, FK):
-                base_cls._fkeys[key] = value
+                new_model._fkeys[key] = value
+        return new_model
 
+    @classmethod
+    def extract_and_assign_managers(cls, new_model, body, list_of_objects):
         managers = cls.extract_managers(body)
 
         if 'objects' not in managers:
             managers['objects'] = DjamixManager
 
-        if fixture:
-            autoreload._cached_filenames.append(fixture)
+        new_model = cls.assign_managers(new_model, managers, list_of_objects)
+        return new_model
 
-        objects = []
-        # TODO This could probably be replaced with None
-        EMPTY_LIST_OF_RECORDS = []  # readonly
+    @classmethod
+    def handle_fixtures(cls, Meta, new_model):
+        if Meta.fixture:
+            autoreload._cached_filenames.append(Meta.fixture)
 
-        if not fixture:
-            if new_class_name == 'DjamixModel':
-                return base_cls
+            with open(Meta.fixture) as fd:
+                records = cls.parse_records_file(fd, Meta)
 
-            for manager_name, manager_class in managers.items():
-                setattr(
-                    base_cls,
-                    manager_name,
-                    manager_class(EMPTY_LIST_OF_RECORDS, base_cls)
-                )
+            return cls.create_instances_from_records(new_model, records)
+        else:
+            return []
 
-            djamix_models[new_class_name] = base_cls
-            print_model_summary(new_class_name, base_cls)
+    def __new__(cls, new_class_name, bases, body):
 
-            return base_cls
+        if DEBUG:
+            print("Creating ", new_class_name, bases, body)
 
-        with open(fixture) as file:
-            # TODO: add mimetype based load of CSV and JSON files
-            if fixture.split('.')[-1] in ['yml', 'yaml']:
-                records = yaml.load(file)
-                if not records:
-                    raise FixtureError(f"Sorry the file {fixture} is empty :(")
-            elif fixture.split('.')[-1].lower() in ['csv', 'tsv']:
-                records = list(csv.DictReader(file, delimiter=delimiter))
-            else:
-                raise FixtureError("Unusported fixture type")
+        new_model = super().__new__(cls, new_class_name, bases, body)
 
-        for record in records:
-            c = base_cls()
+        if new_class_name == 'DjamixModel':
+            return new_model
 
-            for k, v in record.items():
-                c.set_attribute_with_accessible_name(k, v)
+        Meta = body['Meta']
 
-                if base_cls._fkeys and k in base_cls._fkeys:
-                    c.set_foreign_key(k, v)
-                    # TODO: figure out reverse managers (aka _set)
+        for option, default in cls.META_OPTIONS_WITH_DEFAULTS:
+            opt = getattr(Meta, option, None)
+            if opt is None:
+                setattr(Meta, option, default)
 
-            if 'uuid' not in record.keys():
-                # create a stable string represantion of the record
-                # if it's not changed it will have the same uuid
-                sorted_record = ''.join(sorted(str(record)))
-                # using random, but static namespace
-                setattr(c, 'uuid', str(uuid5(NAMESPACE_URL, sorted_record)))
+        new_model = cls.assign_default_attributes(new_model)
+        new_model = cls.prepopulate_schema(new_model)
+        new_model = cls.setup_fields_and_fkeys(new_model, body)
 
-            objects.append(c)
+        list_of_objects = cls.handle_fixtures(Meta, new_model)
 
-        for manager_name, manager_class in managers.items():
-            setattr(base_cls, manager_name, manager_class(objects, base_cls))
-
-        djamix_models[new_class_name] = base_cls
-        print_model_summary(new_class_name, base_cls)
-        return base_cls
+        new_model = cls.extract_and_assign_managers(
+            new_model, body, list_of_objects
+        )
+        djamix_models[new_class_name] = new_model
+        print_model_summary(new_class_name, new_model)
+        return new_model
 
 
 def print_model_summary(name, cls):
@@ -597,7 +626,6 @@ class DjamixModel(metaclass=DjamixModelMeta):
         return yaml.dump(self.to_dict())
 
     def set_foreign_key(self, key, value):
-
         fk = self.__class__._fkeys[key]
         assert isinstance(fk, FK)
 
@@ -606,7 +634,7 @@ class DjamixModel(metaclass=DjamixModelMeta):
                 **{fk.target_field: value}
             )
         except fk.target_class.DoesNotExist as e:
-            if getattr(self.Meta, 'enforce_schema', None):
+            if self.Meta.enforce_schema:
                 raise e
             else:
                 value = None

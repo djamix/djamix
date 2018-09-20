@@ -257,8 +257,8 @@ def test_fkeys():
     assert isinstance(Town.objects.get(pk=1).country, Country)
     assert isinstance(Town.objects.get(pk=2).country, Country)
 
-    assert Town.objects.get(pk=1).country.id == 2
-    assert Town.objects.get(pk=1).country.location == 'NWE'
+    assert Town.objects.get(name='London').country.name == 'UK'
+    assert Town.objects.get(name='London').country.location == 'NWE'
 
 
 def test_autoseqid_behaviour():

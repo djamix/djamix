@@ -280,7 +280,6 @@ class DjamixManager:
 
     def fake(self, count):
         fake_records = []
-        latest_seqid = self.order_by("-pk")[0].id
 
         def fake_value(type, field_name):
             if type == int:
@@ -305,11 +304,8 @@ class DjamixManager:
             kwargs = {
                 field_name: fake_value(field_type, field_name)
                 for field_name, field_type in self.model_class._schema.items()
+                if field_name not in ['id', 'pk', 'uuid']
             }
-            kwargs['uuid'] = str(uuid4())
-            kwargs['pk'] = latest_seqid
-            kwargs['id'] = latest_seqid
-            latest_seqid += 1
             fake_record = self.model_class(**kwargs)
             fake_records.append(fake_record)
 

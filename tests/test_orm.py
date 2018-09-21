@@ -4,6 +4,7 @@
 Testing the data layer aka ORM-like API in djamix.
 """
 
+from uuid import UUID
 from datetime import date, datetime, time
 from pytest import raises, fixture
 
@@ -337,3 +338,19 @@ def test_fkeys_api():
     TODO: implement reverse relationships in the DjamixModelMeta class.
     (something like django's foo.set_all()
     """
+
+
+def test_fake_records_generator(Country):
+
+    ALREADY_IN_FIXTURE = 3
+    NEW_COUNTRIES = 10
+    TOTAL = ALREADY_IN_FIXTURE + NEW_COUNTRIES
+
+    countries = Country.objects.fake(NEW_COUNTRIES).order_by('id')
+    assert len(countries) == NEW_COUNTRIES  # only returns fake countries
+
+    for c, i in zip(countries, range(ALREADY_IN_FIXTURE + 1, TOTAL + 1)):
+        # range here is to check the seqid
+        assert isinstance(c, Country)
+        assert c.id == c.pk == i
+        assert UUID(c.uuid)
